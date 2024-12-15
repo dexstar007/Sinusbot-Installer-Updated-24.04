@@ -15,6 +15,20 @@ function redMessage() {
   echo -e "\033[31;1m${*}\033[0m"
 }
 
+function yellowMessage() {
+  echo -e "\033[33;1m${*}\033[0m"
+}
+
+function blueWhiteTitle() {
+  local title="SinusBot Installer"
+  while true; do
+    for color in "\033[34;1m" "\033[37;1m"; do
+      echo -ne "\r${color}${title}\033[0m"
+      sleep 0.3
+    done
+  done
+}
+
 function errorExit() {
   redMessage "${@}"
   exit 1
@@ -25,10 +39,20 @@ if [ "$(id -u)" != "0" ]; then
   errorExit "This script must be run as root. Use sudo."
 fi
 
+# Stop the moving title when exiting
+trap "exit 0" SIGINT SIGTERM
+
+# Start the moving title in the background
+blueWhiteTitle &
+TITLE_PID=$!
+
 # Update system and install prerequisites
-greenMessage "Updating system and installing prerequisites..."
+greenMessage "\nUpdating system and installing prerequisites..."
 apt update && apt upgrade -y
 apt install -y wget tar xvfb libglib2.0-0 python3 iproute2 dbus libnss3 libegl1-mesa libasound2 libxss1 libxcomposite-dev
+
+# Stop the title animation
+kill $TITLE_PID
 
 # Check if systemd is available
 if ! command -v systemctl &> /dev/null; then
@@ -37,14 +61,15 @@ fi
 
 # Prompt user for action
 greenMessage "SinusBot Installer v$INST_VERSION"
-OPTIONS=("Install" "Update" "Remove" "Quit")
+OPTIONS=("Install" "Update" "Remove" "PW Reset" "Quit")
 echo "What would you like to do?"
 select OPTION in "${OPTIONS[@]}"; do
   case "$REPLY" in
     1) ACTION="install"; break ;;
     2) ACTION="update"; break ;;
     3) ACTION="remove"; break ;;
-    4) exit 0 ;;
+    4) ACTION="pw_reset"; break ;;
+    5) exit 0 ;;
     *) echo "Invalid option, please try again." ;;
   esac
 done
@@ -128,6 +153,19 @@ elif [ "$ACTION" == "remove" ]; then
   rm -rf "$INSTALL_DIR"
 
   greenMessage "SinusBot has been removed successfully."
+
+elif [ "$ACTION" == "pw_reset" ]; then
+  # Password reset functionality
+  if [ ! -d "$INSTALL_DIR" ]; then
+    errorExit "SinusBot is not installed in $INSTALL_DIR."
+  fi
+
+  TEMP_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 8)
+  greenMessage "Resetting admin password to: $TEMP_PASSWORD"
+
+  sudo -u $(whoami) $INSTALL_DIR/sinusbot --override-password=$TEMP_PASSWORD
+
+  greenMessage "Password reset successfully. Please login with admin/$TEMP_PASSWORD and change your password."
 fi
 
 exit 0
