@@ -3,7 +3,7 @@
 
 # Variables
 MACHINE=$(uname -m)
-INST_VERSION="1.6"
+INST_VERSION="1.7"
 USE_SYSTEMD=true
 
 # Functions
